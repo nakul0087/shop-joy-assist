@@ -1,57 +1,102 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, X, Send } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
-const faq: Record<string, string> = {
-  shipping: "We offer free shipping on all orders across India! Standard delivery takes 5-7 business days. Express delivery (2-3 days) is available for ₹199.",
-  return: "We have a 30-day return policy. Items must be unworn with original tags. Refunds are processed within 5-7 business days after we receive the item.",
-  payment: "We accept all major credit/debit cards, UPI, and net banking. All payments are processed securely. This is currently a simulated payment system for demonstration.",
-  size: "Please refer to the size guide on each product page. If you're between sizes, we recommend going up. You can also contact us for specific measurements.",
-  order: "You can track your order from the Profile section after placing it. You'll also receive tracking updates via email and SMS.",
-  discount: "Check our homepage for the latest sales! We currently have up to 25% off on selected items. Sign up for our newsletter for exclusive deals.",
-};
-
-const getResponse = (input: string): string => {
-  const lower = input.toLowerCase();
-  if (lower.includes("ship") || lower.includes("deliver")) return faq.shipping;
-  if (lower.includes("return") || lower.includes("refund") || lower.includes("exchange")) return faq.return;
-  if (lower.includes("pay") || lower.includes("card") || lower.includes("upi")) return faq.payment;
-  if (lower.includes("size") || lower.includes("fit")) return faq.size;
-  if (lower.includes("order") || lower.includes("track")) return faq.order;
-  if (lower.includes("discount") || lower.includes("sale") || lower.includes("offer") || lower.includes("coupon")) return faq.discount;
-  if (lower.includes("hello") || lower.includes("hi") || lower.includes("hey")) return "Hello! 👋 Welcome to StyleBazar. How can I help you today? You can ask about shipping, returns, payments, sizing, or orders.";
-  return "I'd be happy to help! You can ask me about:\n• **Shipping** & delivery\n• **Returns** & refunds\n• **Payment** methods\n• **Size** guide\n• **Order** tracking\n• **Discounts** & offers\n\nOr type your specific question!";
-};
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const ChatAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi! 👋 I'm your StyleBazar assistant. How can I help you today?" },
+    { role: "assistant", content: "Hi! 👋 I'm your StyleBazar assistant. Ask me about products, shipping, returns, sizing, or anything else!" },
   ]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
     const userMsg: Message = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMsg]);
+    const allMessages = [...messages, userMsg];
+    setMessages(allMessages);
     setInput("");
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { role: "assistant", content: getResponse(userMsg.content) }]);
-    }, 600);
+    setIsLoading(true);
+
+    let assistantSoFar = "";
+
+    const upsertAssistant = (chunk: string) => {
+      assistantSoFar += chunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && prev.length === allMessages.length + 1) {
+          return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
+        }
+        return [...prev, { role: "assistant", content: assistantSoFar }];
+      });
+    };
+
+    try {
+      const resp = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ messages: allMessages }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "AI service unavailable" }));
+        upsertAssistant(err.error || "Sorry, I'm having trouble right now. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const reader = resp.body?.getReader();
+      if (!reader) throw new Error("No stream");
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+          let line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) upsertAssistant(content);
+          } catch {
+            buffer = line + "\n" + buffer;
+            break;
+          }
+        }
+      }
+    } catch {
+      upsertAssistant("Sorry, I couldn't connect to the AI service. Please try again later.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <>
-      {/* FAB */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-20 sm:bottom-6 right-4 z-50 w-14 h-14 rounded-full bg-foreground text-background flex items-center justify-center card-shadow-hover hover:scale-105 transition-transform"
@@ -59,12 +104,11 @@ const ChatAssistant = () => {
         {isOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
       </button>
 
-      {/* Chat window */}
       {isOpen && (
         <div className="fixed bottom-36 sm:bottom-24 right-4 z-50 w-80 sm:w-96 bg-card rounded-2xl card-shadow-hover overflow-hidden animate-slide-up border border-border">
           <div className="bg-foreground text-background px-4 py-3">
-            <h3 className="font-bold text-sm">StyleBazar Assistant</h3>
-            <p className="text-xs opacity-70">Ask me anything about your shopping</p>
+            <h3 className="font-bold text-sm">StyleBazar AI Assistant</h3>
+            <p className="text-xs opacity-70">Powered by AI • Ask me anything</p>
           </div>
 
           <div className="h-80 overflow-y-auto p-4 space-y-3">
@@ -77,14 +121,25 @@ const ChatAssistant = () => {
                       : "bg-muted text-foreground rounded-bl-sm"
                   }`}
                 >
-                  {msg.content.split("\n").map((line, li) => (
-                    <p key={li} className={li > 0 ? "mt-1" : ""}>
-                      {line.replace(/\*\*(.*?)\*\*/g, "$1")}
-                    </p>
-                  ))}
+                  {msg.role === "assistant" ? (
+                    <div className="prose prose-sm max-w-none [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
               </div>
             ))}
+            {isLoading && messages[messages.length - 1]?.role === "user" && (
+              <div className="flex justify-start">
+                <div className="bg-muted rounded-xl rounded-bl-sm px-3 py-2 flex gap-1">
+                  <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 
@@ -93,12 +148,14 @@ const ChatAssistant = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Type a message..."
+              placeholder="Ask about products, shipping..."
               className="flex-1 px-3 py-2 bg-muted rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              disabled={isLoading}
             />
             <button
               onClick={handleSend}
-              className="p-2 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+              disabled={isLoading || !input.trim()}
+              className="p-2 rounded-full bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
             </button>
