@@ -55,7 +55,7 @@ const IndexContent = () => {
     }
     switch (currentPage) {
       case "cart":
-        return <CartPage onNavigate={handleNavigate} />;
+        return <CartPage onNavigate={handleNavigate} onViewProduct={handleViewProduct} />;
       case "checkout":
         return <CheckoutPage onNavigate={handleNavigate} />;
       case "wishlist":

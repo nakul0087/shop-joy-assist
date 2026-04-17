@@ -1,12 +1,15 @@
 import { Minus, Plus, Trash2, ArrowLeft, ShoppingCart as CartIcon } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/components/ProductCard";
+import Recommendations from "@/components/Recommendations";
+import { Product } from "@/data/products";
 
 interface CartPageProps {
   onNavigate: (page: string) => void;
+  onViewProduct?: (product: Product) => void;
 }
 
-const CartPage = ({ onNavigate }: CartPageProps) => {
+const CartPage = ({ onNavigate, onViewProduct }: CartPageProps) => {
   const { items, removeFromCart, updateQuantity, totalPrice } = useCart();
   const vat = Math.round(totalPrice * 0.18);
   const grandTotal = totalPrice + vat;
@@ -126,6 +129,8 @@ const CartPage = ({ onNavigate }: CartPageProps) => {
           </button>
         </div>
       </div>
+
+      <Recommendations onViewProduct={onViewProduct} />
     </div>
   );
 };
