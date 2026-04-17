@@ -117,19 +117,89 @@ const CheckoutPage = ({ onNavigate }: CheckoutPageProps) => {
           <div className="bg-card rounded-xl p-6 card-shadow">
             <div className="flex items-center gap-2 mb-4">
               <CreditCard className="h-5 w-5" />
-              <h3 className="font-bold">Payment Details</h3>
+              <h3 className="font-bold">Payment Method</h3>
               <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
                 <Lock className="h-3 w-3" /> Secure
               </span>
             </div>
             <p className="text-xs text-muted-foreground mb-4 bg-primary/10 p-2 rounded-md">
-              🔒 This is a simulated payment. No real charges will be made. Use any card details.
+              🔒 This is a simulated payment. No real charges will be made — use any details.
             </p>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <input required placeholder="Card Number (any 16 digits)" value={form.cardNumber} onChange={(e) => setForm({ ...form, cardNumber: e.target.value })} className="sm:col-span-2 px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              <input required placeholder="MM/YY" value={form.expiry} onChange={(e) => setForm({ ...form, expiry: e.target.value })} className="px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              <input required placeholder="CVV" value={form.cvv} onChange={(e) => setForm({ ...form, cvv: e.target.value })} className="px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+
+            {/* Method picker */}
+            <div className="grid sm:grid-cols-2 gap-2 mb-5">
+              {paymentMethods.map((m) => {
+                const Icon = m.icon;
+                const active = method === m.id;
+                return (
+                  <button
+                    type="button"
+                    key={m.id}
+                    onClick={() => setMethod(m.id)}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-all ${
+                      active
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-muted/30 hover:border-muted-foreground/30"
+                    }`}
+                  >
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${active ? "bg-primary text-primary-foreground" : "bg-background"}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{m.label}</p>
+                      <p className="text-xs text-muted-foreground truncate">{m.desc}</p>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${active ? "border-primary bg-primary" : "border-muted-foreground/40"}`} />
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Method-specific fields */}
+            {method === "card" && (
+              <div className="grid sm:grid-cols-2 gap-4">
+                <input required placeholder="Card Number (any 16 digits)" value={form.cardNumber} onChange={(e) => setForm({ ...form, cardNumber: e.target.value })} className="sm:col-span-2 px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <input required placeholder="MM/YY" value={form.expiry} onChange={(e) => setForm({ ...form, expiry: e.target.value })} className="px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <input required placeholder="CVV" value={form.cvv} onChange={(e) => setForm({ ...form, cvv: e.target.value })} className="px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+            )}
+
+            {method === "upi" && (
+              <div className="space-y-3">
+                <input required placeholder="UPI ID (e.g. yourname@okhdfc)" value={form.upiId} onChange={(e) => setForm({ ...form, upiId: e.target.value })} className="w-full px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <div className="flex flex-wrap gap-2">
+                  {["Google Pay", "PhonePe", "Paytm UPI", "BHIM"].map((app) => (
+                    <span key={app} className="text-xs bg-muted px-3 py-1.5 rounded-full">{app}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {method === "paytm" && (
+              <input required type="tel" placeholder="Paytm Registered Mobile Number" value={form.paytmMobile} onChange={(e) => setForm({ ...form, paytmMobile: e.target.value })} className="w-full px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            )}
+
+            {method === "paypal" && (
+              <div className="space-y-3">
+                <input required type="email" placeholder="PayPal Email Address" value={form.paypalEmail} onChange={(e) => setForm({ ...form, paypalEmail: e.target.value })} className="w-full px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <p className="text-xs text-muted-foreground">You'll be redirected to PayPal to complete payment.</p>
+              </div>
+            )}
+
+            {method === "netbanking" && (
+              <select required value={form.bank} onChange={(e) => setForm({ ...form, bank: e.target.value })} className="w-full px-4 py-3 bg-muted rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                <option value="">Select your bank</option>
+                {["HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank", "Kotak Mahindra", "Yes Bank", "Punjab National Bank"].map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            )}
+
+            {method === "cod" && (
+              <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                Pay <span className="font-semibold text-foreground">{formatPrice(grandTotal)}</span> in cash to the delivery agent when your order arrives.
+              </p>
+            )}
           </div>
         </div>
 
