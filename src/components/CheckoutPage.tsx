@@ -1,15 +1,27 @@
 import { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/components/ProductCard";
-import { CreditCard, CheckCircle2, Lock } from "lucide-react";
+import { CreditCard, CheckCircle2, Lock, Smartphone, Wallet, Building2, Banknote } from "lucide-react";
 
 interface CheckoutPageProps {
   onNavigate: (page: string) => void;
 }
 
+type PaymentMethod = "card" | "upi" | "paytm" | "paypal" | "netbanking" | "cod";
+
+const paymentMethods: { id: PaymentMethod; label: string; desc: string; icon: typeof CreditCard }[] = [
+  { id: "card", label: "Credit / Debit Card", desc: "Visa, Mastercard, RuPay", icon: CreditCard },
+  { id: "upi", label: "UPI", desc: "Google Pay, PhonePe, BHIM", icon: Smartphone },
+  { id: "paytm", label: "Paytm Wallet", desc: "Pay with Paytm balance", icon: Wallet },
+  { id: "paypal", label: "PayPal", desc: "International payments", icon: Wallet },
+  { id: "netbanking", label: "Net Banking", desc: "All major Indian banks", icon: Building2 },
+  { id: "cod", label: "Cash on Delivery", desc: "Pay when order arrives", icon: Banknote },
+];
+
 const CheckoutPage = ({ onNavigate }: CheckoutPageProps) => {
   const { items, totalPrice, clearCart } = useCart();
   const [step, setStep] = useState<"form" | "processing" | "success">("form");
+  const [method, setMethod] = useState<PaymentMethod>("card");
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -19,6 +31,10 @@ const CheckoutPage = ({ onNavigate }: CheckoutPageProps) => {
     cardNumber: "",
     expiry: "",
     cvv: "",
+    upiId: "",
+    paytmMobile: "",
+    paypalEmail: "",
+    bank: "",
   });
 
   const vat = Math.round(totalPrice * 0.18);
