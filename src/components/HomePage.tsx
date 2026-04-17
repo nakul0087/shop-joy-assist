@@ -1,7 +1,23 @@
+import { useMemo, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
 import heroBanner from "@/assets/hero-banner.jpg";
 import { products, categories } from "@/data/products";
 import ProductCard from "@/components/ProductCard";
 import { Product } from "@/data/products";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 
 interface HomePageProps {
   searchQuery: string;
@@ -11,13 +27,33 @@ interface HomePageProps {
   onCategoryChange: (cat: string) => void;
 }
 
+type SortOption = "featured" | "price-asc" | "price-desc";
+
 const HomePage = ({ searchQuery, onNavigate, onViewProduct, selectedCategory, onCategoryChange }: HomePageProps) => {
-  const filtered = products.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.brand.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCat = selectedCategory === "All" || p.category === selectedCategory;
-    return matchesSearch && matchesCat;
-  });
+  const priceBounds = useMemo(() => {
+    const prices = products.map((p) => p.price);
+    return [Math.min(...prices), Math.max(...prices)] as [number, number];
+  }, []);
+
+  const [sortBy, setSortBy] = useState<SortOption>("featured");
+  const [priceRange, setPriceRange] = useState<[number, number]>(priceBounds);
+
+  const filtered = useMemo(() => {
+    const result = products.filter((p) => {
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.brand.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCat = selectedCategory === "All" || p.category === selectedCategory;
+      const matchesPrice = p.price >= priceRange[0] && p.price <= priceRange[1];
+      return matchesSearch && matchesCat && matchesPrice;
+    });
+
+    if (sortBy === "price-asc") result.sort((a, b) => a.price - b.price);
+    else if (sortBy === "price-desc") result.sort((a, b) => b.price - a.price);
+
+    return result;
+  }, [searchQuery, selectedCategory, priceRange, sortBy]);
+
+  const isPriceFiltered = priceRange[0] !== priceBounds[0] || priceRange[1] !== priceBounds[1];
 
   return (
     <div className="pb-20 sm:pb-8">
