@@ -227,7 +227,7 @@ const CheckoutPage = ({ onNavigate }: CheckoutPageProps) => {
             type="submit"
             className="w-full mt-6 py-3 bg-primary text-primary-foreground rounded-full font-bold hover:opacity-90 transition-opacity"
           >
-            Pay {formatPrice(grandTotal)}
+            {method === "cod" ? `Place Order · ${formatPrice(grandTotal)}` : `Pay ${formatPrice(grandTotal)}`}
           </button>
         </div>
       </form>
